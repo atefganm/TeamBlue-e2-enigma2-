@@ -117,16 +117,11 @@ is usually caused by not marking PSignals as immutable.
 #include <lib/dvb/fcc.h>
 %}
 
-/* Backward compatibility output helper */
-%fragment("t_output_helper","header") %{
-#define t_output_helper SWIG_Python_AppendOutput
-%}
-
 %feature("ref")   iObject "$this->AddRef(); /* eDebug(\"AddRef (%s:%d)!\", __FILE__, __LINE__); */ "
 %feature("unref") iObject "$this->Release(); /* eDebug(\"Release! %s:%d\", __FILE__, __LINE__); */ "
 
 /* this magic allows smartpointer to be used as OUTPUT arguments, i.e. call-by-reference-styled return value. */
-
+#if SWIG_VERSION < 0x040300
 %define %typemap_output_simple(Type)
  %typemap(in,numinputs=0) Type *OUTPUT ($*1_ltype temp),
               Type &OUTPUT ($*1_ltype temp)
@@ -134,7 +129,7 @@ is usually caused by not marking PSignals as immutable.
  %fragment("t_out_helper"{Type},"header",
      fragment="t_output_helper") {}
  %typemap(argout,fragment="t_out_helper"{Type}) Type *OUTPUT, Type &OUTPUT
-   "$result = t_output_helper($result, (SWIG_NewPointerObj((void*)($1), $1_descriptor, 1)), 1);"
+   "$result = t_output_helper($result, (SWIG_NewPointerObj((void*)($1), $1_descriptor, 1)));"
 %enddef
 
 %define %typemap_output_ptr(Type)
@@ -145,8 +140,33 @@ is usually caused by not marking PSignals as immutable.
      fragment="t_output_helper") {}
  %typemap(argout,fragment="t_out_helper"{Type}) Type *OUTPUT, Type &OUTPUT
 		// generate None if smartpointer is NULL
-   "$result = t_output_helper($result, ((*$1) ? SWIG_NewPointerObj((void*)($1), $1_descriptor, 1) : (delete $1, Py_INCREF(Py_None), Py_None)), 1);"
+   "$result = t_output_helper($result, ((*$1) ? SWIG_NewPointerObj((void*)($1), $1_descriptor, 1) : (delete $1, Py_INCREF(Py_None), Py_None)));"
 %enddef
+
+#else
+
+%define %typemap_output_simple(Type)
+ %typemap(in,numinputs=0) Type *OUTPUT ($*1_ltype temp),
+              Type &OUTPUT ($*1_ltype temp)
+   "$1 = new Type; (void)temp;";
+ %fragment("SWIG_Python_AppendOutput"{Type},"header",
+     fragment="SWIG_Python_AppendOutput") {}
+ %typemap(argout,fragment="SWIG_Python_AppendOutput"{Type}) Type *OUTPUT, Type &OUTPUT
+   "$result = SWIG_Python_AppendOutput($result, (SWIG_NewPointerObj((void*)($1), $1_descriptor, 1)), $isvoid);"
+%enddef
+
+%define %typemap_output_ptr(Type)
+ %typemap(in,numinputs=0) Type *OUTPUT ($*1_ltype temp),
+              Type &OUTPUT ($*1_ltype temp)
+   "$1 = new Type; (void)temp;";
+ %fragment("SWIG_Python_AppendOutput"{Type},"header",
+     fragment="SWIG_Python_AppendOutput") {}
+ %typemap(argout,fragment="SWIG_Python_AppendOutput"{Type}) Type *OUTPUT, Type &OUTPUT
+		// generate None if smartpointer is NULL
+   "$result = SWIG_Python_AppendOutput($result, ((*$1) ? SWIG_NewPointerObj((void*)($1), $1_descriptor, 1) : (delete $1, Py_INCREF(Py_None), Py_None)), $isvoid);"
+%enddef
+
+#endif
 
 typedef long time_t;
 %include <enigma2_config.h>
